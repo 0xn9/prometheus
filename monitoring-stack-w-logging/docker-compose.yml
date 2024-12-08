@@ -1,12 +1,16 @@
 version: "3.7"
+
 volumes:
   prometheus_data: {}
+  loki_data: {}
+
 networks:
   front-tier:
   back-tier:
+
 services:
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.36.2
     volumes:
       - ./prometheus/:/etc/prometheus/
       - prometheus_data:/prometheus
@@ -20,8 +24,10 @@ services:
     links:
       - cadvisor:cadvisor
       - alertmanager:alertmanager
+      - loki:loki
     depends_on:
       - cadvisor
+      - loki
     networks:
       - back-tier
     restart: always
@@ -48,7 +54,7 @@ services:
       mode: global
 
   alertmanager:
-    image: prom/alertmanager:latest
+    image: prom/alertmanager
     ports:
       - 9093:9093
     volumes:
@@ -61,7 +67,7 @@ services:
       - "--storage.path=/alertmanager"
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
+    image: gcr.io/cadvisor/cadvisor
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:rw
@@ -74,3 +80,27 @@ services:
     restart: always
     deploy:
       mode: global
+
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - 3100:3100
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    user: root # Add this to ensure proper permissions
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - back-tier
+      - front-tier
+    restart: always
+
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - ./promtail/promtail-config.yaml:/etc/promtail/config.yaml
+      - /var/log:/var/log
+    command: -config.file=/etc/promtail/config.yaml
+    networks:
+      - back-tier
+    restart: always
